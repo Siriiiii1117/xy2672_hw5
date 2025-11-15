@@ -112,5 +112,117 @@ power_df =
   )
 ```
 
+Plot power vs. true mu:
 
+```{r}
+power_df |> 
+  ggplot(aes(x = mu, y = power)) +
+  geom_point() +
+  geom_line() +
+  labs(
+    x = "True mean (μ)",
+    y = "Power"
+  )
+```
+
+The plot shows that power rises as the true mean increases, which means that larger effect sizes produce higher power. 
+Create `estimate_df` containing `estimate` info 
+
+```{r}
+estimate_df = 
+  rnorm_sim_results_df |> 
+  group_by(mu) |> 
+  summarize(
+    avg_estimate_all = mean(estimate),
+    avg_estimate_rejected = mean(estimate[p.value < 0.05])
+  )
+```
+
+Plot estimate vs. true mean:
+
+```{r}
+estimate_df |> 
+  ggplot(aes(x = mu)) +
+  geom_point(aes(y = avg_estimate_all, color = "all samples")) +
+  geom_point(aes(y = avg_estimate_rejected, color = "rejected samples")) +
+  labs(
+    x = "True mean (μ)",
+    y = "Average estimate of μ̂",
+    title = "Average estimates vs true μ",
+    color = "Sample"
+  )
+```
+
+No, it is not equal to the true mu. Because the rejected samples rejected the null when they have very large estimated mu compared to the true mu, so the sample average of 𝜇̂ across tests for which the null is rejected will be larger than the true mu, especially when the effect size is small. 
+
+
+## Problem 3
+
+Load the dataset
+```{r}
+homicide_df = read_csv("homicide-data.csv")
+```
+
+There are `r nrow(homicide_df)` rows and `r ncol(homicide_df)` columns. Each row represents a single homicide case reported in one of 50 large U.S. cities. The variables include victim info (`victim_last`, `victim_first`, `victim_age`, `victim_race`, and `victim_sex`), geographic info (`city`, `state`, `lat`, `lon`), the date when the homicide was reported (`reported_date`), and whether the homicide was solved or remains unsolved (`disposition`).
+There is one data point: `city` = TULSA, `state` = AL, which may be a point recorded by mistake. In the following data analysis, this data point is removed for accuracy.
+
+
+create `city_state` variable
+```{r}
+homicide_df =
+  homicide_df|> 
+  mutate(
+    city_state = str_c(city, ", ", state)
+  ) |>
+  filter(city_state != "Tulsa, AL") |> 
+  group_by(city_state) |> 
+  summarize(
+    total = n(),
+    unsolved = sum(disposition %in% c("Closed without arrest", "Open/No arrest"))
+  )
+```
+
+Baltimore, MD homicide info:
+
+```{r}
+baltimore = 
+  homicide_df |> 
+  filter(city_state == "Baltimore, MD") |> 
+  mutate(
+  prop_test = map2(unsolved, total, ~ broom::tidy(prop.test(.x, .y)))
+  ) |> 
+  unnest(prop_test) |> 
+  select(city_state, estimate, conf.low, conf.high)
+
+baltimore
+```
+
+All cities homicide info:
+
+```{r}
+all_city_df = 
+  homicide_df |> 
+  mutate(
+  prop_test = map2(unsolved, total, ~ broom::tidy(prop.test(.x, .y)))
+  ) |> 
+  unnest(prop_test) |> 
+  select(city_state, estimate, conf.low, conf.high)
+```
+
+Create plots: 
+
+```{r}
+all_city_df |> 
+  mutate(
+    city_state = fct_reorder(city_state, estimate)
+  ) |> 
+  ggplot(aes(x = city_state, y = estimate)) +
+  geom_point() + 
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high)) + 
+  labs(
+    x = "City",
+    y = "Proportion unsolved homicides (95% CI)"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
 
